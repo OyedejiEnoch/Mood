@@ -130,7 +130,7 @@ html.lenis body {
   font-family: var(--font-display), "Arial Black", sans-serif;
   font-weight: 800;
   line-height: 0.94;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.03em;
   text-transform: uppercase;
   font-size: clamp(2.2rem, 5.4vw, 5rem);
 }
@@ -168,23 +168,18 @@ body {
 
 /* ---- Act I : warm courtyard ---- */
 .scene-one {
-  perspective: 1400px;
   background:
     radial-gradient(120% 90% at 78% 42%, #cba881 0%, #a9835c 38%, #6f5232 78%, #3c2a17 100%);
 }
-.a1-plate,
-.a1-char {
+/* hero idle-nod loop */
+.a1-video {
   position: absolute;
   inset: 0;
-  background-repeat: no-repeat;
-  background-size: cover;
-  background-position: 82% 50%;
-  will-change: transform;
-}
-/* full original courtyard scene — one layer, pronounced camera parallax */
-.a1-plate {
-  background-image: url("/char/char1-scene.jpg");
-  transform: scale(1.14);
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 60% 50%;
+  display: block;
 }
 /* left scrim so the text side stays legible over the warm plate */
 .a1-scrim {
@@ -470,7 +465,7 @@ body {
 .choice-hint {
   margin-top: 0.85rem;
   color: var(--a1-cream-dim);
-  opacity: 0.5;
+  opacity: 0.68;
   font-size: clamp(0.55rem, 0.66vw, 0.7rem);
 }
 .deck[data-act="2"] .choice-hint {
@@ -500,7 +495,7 @@ body {
   font-weight: 800;
   text-transform: uppercase;
   font-size: clamp(4rem, 22vw, 20rem);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.03em;
   color: #fff;
   mix-blend-mode: overlay;
   will-change: transform, opacity;

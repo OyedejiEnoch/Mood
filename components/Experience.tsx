@@ -14,7 +14,7 @@ import StoryDeck, { type DeckBeat } from "./StoryDeck";
 
 if (typeof window !== "undefined") gsap.registerPlugin(ScrollTrigger);
 
-const TOTAL_VH = 1320;
+const TOTAL_VH = 1600;
 
 export default function Experience() {
   const lenisRef = useLenis(true);
@@ -26,6 +26,7 @@ export default function Experience() {
   const sceneTwoRef = useRef<HTMLDivElement>(null);
   const sceneThreeRef = useRef<HTMLDivElement>(null);
   const sceneFourRef = useRef<HTMLDivElement>(null);
+  const video1Ref = useRef<HTMLVideoElement>(null);
   const video2Ref = useRef<HTMLVideoElement>(null);
   const video3Ref = useRef<HTMLVideoElement>(null);
   const video4Ref = useRef<HTMLVideoElement>(null);
@@ -77,11 +78,14 @@ export default function Experience() {
       act === 1 ? ACT_ONE : act === 2 ? ACT_TWO : act === 3 ? ACT_THREE : ACT_FOUR;
     const b = a.beats[index];
     currentBeatIdRef.current = b.id;
-    const branchSig = Object.values(branchRef.current).join(",");
+    const text = resolveText(b.text, branchRef.current);
     return {
-      key: `${a.id}-${index}-${branchSig}`,
+      // key on the resolved text, not on every branch value — so changing a
+      // branch only re-transitions the beats whose text actually changed
+      // (fixes the flash of the current beat when a choice is clicked)
+      key: `${a.id}-${index}:${text}`,
       label: b.label,
-      text: resolveText(b.text, branchRef.current),
+      text,
       choices: b.choices,
       act: a.id,
       side: a.textSide,
@@ -139,22 +143,16 @@ export default function Experience() {
         sceneFourRef.current.style.transform = `scale(${1.28 - enter4 * 0.28})`;
       }
 
-      // videos play on their own; scroll only gates play/pause
-      const v2 = video2Ref.current;
-      if (v2) {
-        if (p > 0.32 && p < 0.6 && v2.paused) v2.play().catch(() => {});
-        else if ((p <= 0.3 || p >= 0.62) && !v2.paused) v2.pause();
-      }
-      const v3 = video3Ref.current;
-      if (v3) {
-        if (p > 0.56 && p < 0.86 && v3.paused) v3.play().catch(() => {});
-        else if ((p <= 0.54 || p >= 0.88) && !v3.paused) v3.pause();
-      }
-      const v4 = video4Ref.current;
-      if (v4) {
-        if (p > 0.79 && v4.paused) v4.play().catch(() => {});
-        else if (p < 0.77 && !v4.paused) v4.pause();
-      }
+      // videos play only while their act is on screen; scroll gates play/pause
+      const gate = (v: HTMLVideoElement | null, on: boolean) => {
+        if (!v) return;
+        if (on && v.paused) v.play().catch(() => {});
+        else if (!on && !v.paused) v.pause();
+      };
+      gate(video1Ref.current, p < T.a2[0]);
+      gate(video2Ref.current, p >= T.a1[1] && p < T.a3[0]);
+      gate(video3Ref.current, p >= T.a2[1] && p < T.a4[0]);
+      gate(video4Ref.current, p >= T.a3[1]);
 
       // break word 1 — "MOOD" sweeps horizontally
       if (break1Ref.current) {
@@ -182,11 +180,11 @@ export default function Experience() {
       if (railFillRef.current) {
         railFillRef.current.style.height = `${p * 100}%`;
         railFillRef.current.style.background =
-          p > 0.85
+          p > T.brk3[0]
             ? "var(--a4-accent)"
-            : p > 0.58
+            : p > T.brk2[0]
             ? "var(--a3-accent)"
-            : p > 0.32
+            : p > T.brk1[0]
             ? "var(--a2-accent)"
             : "var(--a1-accent)";
       }
@@ -224,7 +222,7 @@ export default function Experience() {
     };
   }, []);
 
-  // ---- readiness: wait for the first Act II video to buffer (+ a hard cap) ----
+  // ---- readiness: wait for the hero video to buffer (+ a hard cap) ----
   useEffect(() => {
     let done = false;
     const finish = () => {
@@ -233,7 +231,7 @@ export default function Experience() {
       setReady(true);
       ScrollTrigger.refresh();
     };
-    const v = video2Ref.current;
+    const v = video1Ref.current;
     if (v) {
       if (v.readyState >= 3) finish();
       else v.addEventListener("canplay", finish, { once: true });
@@ -285,7 +283,7 @@ export default function Experience() {
     <main>
       {/* fixed cinematic stage */}
       <div className="stage">
-        <CharacterOne ref={sceneOneRef} />
+        <CharacterOne ref={sceneOneRef} videoRef={video1Ref} />
         <CharacterTwo ref={sceneTwoRef} videoRef={video2Ref} />
         <CharacterThree ref={sceneThreeRef} videoRef={video3Ref} />
         <CharacterFour ref={sceneFourRef} videoRef={video4Ref} />
@@ -297,7 +295,7 @@ export default function Experience() {
           <span>Ease</span>
         </div>
         <div ref={break3Ref} className="breakword" aria-hidden>
-          <span>Night</span>
+          <span>Home</span>
         </div>
 
         <StoryDeck beat={deckBeat} onChoose={onChoose} />
