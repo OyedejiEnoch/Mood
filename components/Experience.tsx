@@ -5,7 +5,15 @@ import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useLenis } from "@/lib/useLenis";
 import { ACT_ONE, ACT_TWO, ACT_THREE, ACT_FOUR, resolveText, type Choice } from "@/data/story";
-import { A1_WINDOWS, T, clamp01, locate, mapRange, windowsFor } from "@/lib/timeline";
+import {
+  A1_WINDOWS,
+  T,
+  clamp01,
+  locate,
+  mapRange,
+  windowsFor,
+  type Located,
+} from "@/lib/timeline";
 import CharacterOne from "./CharacterOne";
 import CharacterTwo from "./CharacterTwo";
 import CharacterThree from "./CharacterThree";
@@ -16,9 +24,33 @@ if (typeof window !== "undefined") gsap.registerPlugin(ScrollTrigger);
 
 const TOTAL_VH = 1600;
 
+// giant faint wordmark behind each scene (by act) + which side it hugs
+const GHOST = ["KID", "MARNHON", "MILES", "HOME"];
+const GHOST_SIDE = [
+  ACT_ONE.textSide,
+  ACT_TWO.textSide,
+  ACT_THREE.textSide,
+  ACT_FOUR.textSide,
+];
+
 export default function Experience() {
   const lenisRef = useLenis(true);
   const [ready, setReady] = useState(false);
+
+  // ?rec=1 → hands-free recording pass: gate off, auto-scroll, chrome hidden.
+  // ?dur=90 sets the run length in seconds (default 85).
+  const [recMode, setRecMode] = useState(false);
+  const recModeRef = useRef(false);
+  const recDurRef = useRef(85);
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    if (q.has("rec")) {
+      recModeRef.current = true;
+      const d = Number(q.get("dur"));
+      if (d > 5) recDurRef.current = d;
+      setRecMode(true);
+    }
+  }, []);
 
   // dom refs
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -36,6 +68,9 @@ export default function Experience() {
   const break2Ref = useRef<HTMLDivElement>(null);
   const break3Ref = useRef<HTMLDivElement>(null);
   const hintRef = useRef<HTMLDivElement>(null);
+  const ghostRef = useRef<HTMLDivElement>(null);
+  const ghostTextRef = useRef<HTMLSpanElement>(null);
+  const lastActRef = useRef(0);
 
   // engine state (imperative, not React)
   const branchRef = useRef<Record<string, string>>({});
@@ -64,13 +99,13 @@ export default function Experience() {
   }, []);
   const answeredRef = useRef<Set<string>>(new Set());
   const gateCeil = useCallback(() => {
+    if (recModeRef.current) return 1; // recording: never hold the scroll
     for (const g of GATES) if (!answeredRef.current.has(g.id)) return g.gateP;
     return 1;
   }, [GATES]);
 
   // ---- build the deck payload for a given progress ----
-  const buildDeck = useCallback((p: number): DeckBeat | null => {
-    const loc = locate(p);
+  const buildDeck = useCallback((loc: Located): DeckBeat | null => {
     if (loc.zone === "break") return null;
     const act = loc.zone === "intro" ? 1 : loc.act;
     const index = loc.zone === "intro" ? 0 : loc.index;
@@ -111,13 +146,14 @@ export default function Experience() {
         p = ceil;
       }
       lastProgressRef.current = p;
+      const locNow = locate(p); // computed once, reused for deck + ghost
 
-      // Act I exits through break 1 (horizontal wipe)
+      // Act I exits through break 1 (horizontal wipe) — transform+opacity only
+      // (no animated blur; blur is the most expensive filter to animate)
       const exit1 = mapRange(p, T.brk1[0], T.brk1[1]);
       if (sceneOneRef.current) {
         sceneOneRef.current.style.opacity = `${1 - exit1}`;
         sceneOneRef.current.style.transform = `translate3d(${exit1 * 11}vw,0,0) scale(${1 - exit1 * 0.05})`;
-        sceneOneRef.current.style.filter = `blur(${exit1 * 9}px)`;
       }
 
       // Act II rises in during break 1, lifts away up during break 2
@@ -188,14 +224,31 @@ export default function Experience() {
             ? "var(--a2-accent)"
             : "var(--a1-accent)";
       }
-      if (railCountRef.current)
-        railCountRef.current.textContent = String(Math.round(p * 100)).padStart(2, "0");
+      // ghost wordmark + chapter counter (update only when the act changes)
+      const inBreak = locNow.zone === "break";
+      const actNow =
+        locNow.zone === "break"
+          ? locNow.index + 1
+          : locNow.zone === "intro"
+          ? 1
+          : locNow.act;
+      if (actNow !== lastActRef.current) {
+        lastActRef.current = actNow;
+        if (ghostTextRef.current) ghostTextRef.current.textContent = GHOST[actNow - 1];
+        if (ghostRef.current) {
+          ghostRef.current.dataset.side = GHOST_SIDE[actNow - 1];
+          ghostRef.current.dataset.act = String(actNow);
+        }
+        if (railCountRef.current)
+          railCountRef.current.textContent = `0${actNow} / 04`;
+      }
+      if (ghostRef.current) ghostRef.current.style.opacity = inBreak ? "0" : "1";
 
       // scroll hint
       if (hintRef.current) hintRef.current.style.opacity = p > 0.015 ? "0" : "1";
 
       // deck (only push to React when the beat actually changes)
-      const deck = buildDeck(p);
+      const deck = buildDeck(locNow);
       const key = deck?.key ?? "null";
       if (key !== lastDeckKeyRef.current) {
         lastDeckKeyRef.current = key;
@@ -246,6 +299,18 @@ export default function Experience() {
     };
   }, []);
 
+  // ---- recording pass: one smooth constant-speed scroll top → bottom ----
+  useEffect(() => {
+    if (!recMode || !ready) return;
+    const lenis = lenisRef.current;
+    const start = window.setTimeout(() => {
+      const maxY = document.body.scrollHeight - window.innerHeight;
+      if (lenis) lenis.scrollTo(maxY, { duration: recDurRef.current, easing: (t) => t });
+      else window.scrollTo({ top: maxY, behavior: "smooth" });
+    }, 900);
+    return () => clearTimeout(start);
+  }, [recMode, ready, lenisRef]);
+
   // ---- choice handling: clicks scroll the timeline forward ----
   const onChoose = useCallback((c: Choice) => {
     const lenis = lenisRef.current;
@@ -280,13 +345,18 @@ export default function Experience() {
   }, []);
 
   return (
-    <main>
+    <main data-rec={recMode ? "" : undefined}>
       {/* fixed cinematic stage */}
       <div className="stage">
         <CharacterOne ref={sceneOneRef} videoRef={video1Ref} />
         <CharacterTwo ref={sceneTwoRef} videoRef={video2Ref} />
         <CharacterThree ref={sceneThreeRef} videoRef={video3Ref} />
         <CharacterFour ref={sceneFourRef} videoRef={video4Ref} />
+
+        {/* giant faint wordmark filling the empty side of each scene */}
+        <div ref={ghostRef} className="ghost" data-side="left" data-act="1" aria-hidden>
+          <span ref={ghostTextRef}>KID</span>
+        </div>
 
         <div ref={break1Ref} className="breakword" aria-hidden>
           <span>Mood</span>
@@ -299,6 +369,10 @@ export default function Experience() {
         </div>
 
         <StoryDeck beat={deckBeat} onChoose={onChoose} />
+
+        {/* one stage-level film-grain + vignette, not one per scene */}
+        <div className="vignette" aria-hidden />
+        <div className="grain" aria-hidden />
       </div>
 
       {/* scroll length driver */}
@@ -309,7 +383,7 @@ export default function Experience() {
         <div ref={railFillRef} className="rail-fill" />
       </div>
       <span ref={railCountRef} className="rail-count label" aria-hidden>
-        00
+        01 / 04
       </span>
 
       {/* scroll hint */}

@@ -24,8 +24,6 @@ const CharacterFour = forwardRef<
         <source src="/char/char4.mp4" type="video/mp4" />
       </video>
       <div className="a4-scrim" />
-      <div className="grain" />
-      <div className="vignette" />
     </div>
   );
 });

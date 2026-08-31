@@ -25,8 +25,6 @@ const CharacterOne = forwardRef<
         <source src="/char/char1.mp4" type="video/mp4" />
       </video>
       <div className="a1-scrim" />
-      <div className="grain" />
-      <div className="vignette" />
     </div>
   );
 });

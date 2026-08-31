@@ -24,8 +24,6 @@ const CharacterThree = forwardRef<
         <source src="/char/char3.mp4" type="video/mp4" />
       </video>
       <div className="a3-scrim" />
-      <div className="grain" />
-      <div className="vignette" />
     </div>
   );
 });
